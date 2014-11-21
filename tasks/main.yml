@@ -7,12 +7,12 @@
 
 - name: Ensure Nexus o/s group exists
   group: name="{{ nexus_os_group }}" state=present
-  when: nexus_create_os_group
+  when: nexus_manage_os_group
   sudo: true
 
 - name: Ensure Nexus o/s user exists
   user: name="{{ nexus_os_user }}" group="{{ nexus_os_group }}" shell="{{ nexus_os_user_shell }}" state=present
-  when: nexus_create_os_user
+  when: nexus_manage_os_user
   sudo: true
 
 - name: Ensure Nexus installation directory exists
@@ -32,6 +32,7 @@
     group={{ nexus_os_group }}
     mode="0755"
   tags: unpack
+  sudo: true
 
 - name: Update symlink nexus-latest
   shell: ln -fs `ls -d {{ nexus_installation_dir }}/nexus-*|tail -1` {{ nexus_installation_dir }}/nexus-latest
@@ -45,37 +46,40 @@
   register: s_w
 
 - name: Move existing sonatype working directory into specified working dir
-  command: mv "{{ nexus_installation_dir }}/sonatype-work" "{{ nexus_working_dir }}"
+  command: mv "{{ nexus_installation_dir }}/sonatype-work" "{{ nexus_properties['nexus-work'] }}"
   when: s_w.stat.exists
+  sudo: true
 
 - name: Set permissions and ownership on Nexus installation directory
   file:
-    path={{ nexus_installation_dir }}/{{ nexus_package }}
+    path={{ nexus_installation_dir }}/nexus-{{ nexus_version }}
     state="directory"
     owner="{{ nexus_os_user }}"
     group="{{ nexus_os_group }}"
     mode="0755"
     recurse=true
+  sudo: true
 
 - name: Set permissions and ownership on Nexus work directory
   file:
-    path={{ nexus_working_dir }}
+    path={{ nexus_properties['nexus-work'] }}
     state="directory"
     owner="{{ nexus_os_user }}"
     group="{{ nexus_os_group }}"
     mode="0755"
     recurse=true
+  sudo: true
 
 - name: Set permissions and ownership on Nexus logs directory
   file:
-    path={{ nexus_installation_dir }}/nexus-latest/logs
+    path={{ nexus_installation_dir }}/nexus-{{ nexus_version }}
     owner="{{ nexus_os_user }}"
     group="{{ nexus_os_group }}"
     state=directory
 
 - name: Set permissions and ownership on Nexus tmp directory
   file:
-    path={{ nexus_installation_dir }}/nexus-latest/tmp
+    path={{ nexus_installation_dir }}/nexus-{{ nexus_version }}
     owner="{{ nexus_os_user }}"
     group="{{ nexus_os_group }}"
     state=directory
@@ -87,21 +91,14 @@
     group="{{ nexus_os_group }}"
     state=directory
 
-- name: Configure port in nexus.properties
+- name: Configure nexus.properties
   lineinfile:
     dest="{{ nexus_installation_dir }}/nexus-{{ nexus_version }}/conf/nexus.properties"
-    line="application-port={{ nexus_port }}"
-    regexp="application-port=.*"
+    line="{{ item.key }}={{ item.value }}"
+    regexp="{{ item.key }}=.*"
     state=present
-  notify:
-    - 'restart nexus'
-
-- name: Configure workdir in nexus.properties
-  lineinfile:
-    dest="{{ nexus_installation_dir }}/nexus-{{ nexus_version }}/conf/nexus.properties"
-    line="nexus-work={{ nexus_working_dir }}"
-    regexp="nexus-work=.*"
-    state=present
+  with_dict: nexus_properties
+  sudo: true
   notify:
     - 'restart nexus'
 
