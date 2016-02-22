@@ -37,13 +37,12 @@
 - name: Update symlink nexus-latest
   shell: ln -fs `ls -d {{ nexus_installation_dir }}/nexus-*|tail -1` {{ nexus_installation_dir }}/nexus-latest
 
-- name: Install createrepo for nexus-yum-repository-plugin
-  yum: name=createrepo state=installed
-  when: ansible_os_family == "RedHat"
-
 - name: Check if sonatype working directory exists
   stat: path="{{ nexus_installation_dir }}/sonatype-work"
   register: s_w
+
+- name: Create work directory
+  file: path={{ nexus_properties['nexus-work'] }} state="directory" owner="{{ nexus_os_user }}" group="{{ nexus_os_group }}"
 
 - name: Move existing sonatype working directory into specified working dir
   command: mv "{{ nexus_installation_dir }}/sonatype-work" "{{ nexus_properties['nexus-work'] }}"
